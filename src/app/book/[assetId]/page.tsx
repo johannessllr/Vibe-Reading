@@ -33,6 +33,7 @@ export default async function BookDetail({
   const actions = [
     { href: '/chat', title: 'Chat with Wormy', desc: 'Talk about the book — Wormy knows where you are' },
     { href: '/quiz', title: 'Quiz', desc: 'Adaptive questions that grow with you' },
+    { href: '/flashcards', title: 'Flashcards', desc: 'Cards from your highlights — or ask for any chapter' },
   ];
 
   return (
