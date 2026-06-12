@@ -32,3 +32,4 @@ npm-debug.log*
 *.epub
 *.pdf
 data/book.json
+.superpowers/
