@@ -1,8 +1,10 @@
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
 import { getBooks, getHighlights } from '@/lib/apple-books';
+import { removeMyBook } from '@/lib/my-books';
 
 export const dynamic = 'force-dynamic';
 
@@ -72,6 +74,18 @@ export default async function BookDetail({
           </CardContent>
         </Card>
       )}
+
+      <form
+        action={async () => {
+          'use server';
+          removeMyBook(assetId);
+          redirect('/');
+        }}
+      >
+        <Button variant="ghost" className="text-[#8a7a64]">
+          Remove from my shelf
+        </Button>
+      </form>
     </div>
   );
 }

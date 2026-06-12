@@ -16,7 +16,7 @@ export function BottomNav() {
         {TABS.map((t) => {
           const active =
             t.href === '/'
-              ? pathname === '/' || pathname.startsWith('/book')
+              ? pathname === '/' || pathname.startsWith('/book') || pathname === '/add'
               : pathname.startsWith(t.href);
           return (
             <Link
