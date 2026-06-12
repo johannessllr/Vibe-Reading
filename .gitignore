@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+.venv/
+__pycache__/
+
+# Build output
+dist/
+build/
+.next/
+out/
+
+# Environment & secrets — never commit these!
+.env
+.env.local
+.env*.local
+
+# OS / editor junk
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# iCloud sync artifacts
+*.icloud
+
+# Logs
+*.log
+npm-debug.log*
