@@ -1,7 +1,7 @@
 import { streamText, convertToModelMessages, type UIMessage } from 'ai';
 import { model } from '@/lib/ai';
 import { readMemory } from '@/lib/memory';
-import { getBooks } from '@/lib/apple-books';
+import { getBooks, type LibraryBook } from '@/lib/apple-books';
 
 export const maxDuration = 60;
 
@@ -9,7 +9,7 @@ export async function POST(req: Request) {
   const { messages }: { messages: UIMessage[] } = await req.json();
 
   // Apple Books may be absent on a dev machine — fall back to an empty shelf.
-  let books;
+  let books: LibraryBook[];
   try {
     books = getBooks();
   } catch {

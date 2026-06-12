@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { generateObject } from 'ai';
 import { z } from 'zod';
 import { model } from '@/lib/ai';
-import { getAllHighlights } from '@/lib/apple-books';
+import { getAllHighlights, type Highlight } from '@/lib/apple-books';
 
 const cardsSchema = z.object({
   cards: z.array(
@@ -34,7 +34,7 @@ export async function GET(req: Request) {
   );
   const seeds = seedCards();
   // Apple Books may be absent on a dev machine — fall back to the seed deck.
-  let highlights;
+  let highlights: (Highlight & { bookTitle: string })[];
   try {
     highlights = getAllHighlights();
   } catch {

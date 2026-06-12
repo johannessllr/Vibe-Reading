@@ -16,7 +16,7 @@ interface Question {
 export default function QuizPage() {
   const [q, setQ] = useState<Question | null>(null);
   const [picked, setPicked] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const fetchQuestion = async () => {
     setLoading(true);
@@ -26,7 +26,20 @@ export default function QuizPage() {
   };
 
   useEffect(() => {
-    fetchQuestion();
+    let ignore = false;
+
+    fetch('/api/quiz')
+      .then((r) => r.json())
+      .then((question: Question) => {
+        if (!ignore) setQ(question);
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false);
+      });
+
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   const answer = async (i: number) => {
