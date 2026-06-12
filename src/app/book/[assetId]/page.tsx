@@ -5,11 +5,17 @@ import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { getBooks, getHighlights } from '@/lib/apple-books';
 import { removeMyBook } from '@/lib/my-books';
+import { loadBook } from '@/lib/book';
 
 export const dynamic = 'force-dynamic';
 
-// TODO(#4): detect via loadBook().assetId once the book loader is merged.
-const isDemoBook = (title: string) => title.toLowerCase().includes('vibe coding');
+function getDemoAssetId(): string | null {
+  try {
+    return loadBook().assetId;
+  } catch {
+    return null;
+  }
+}
 
 export default async function BookDetail({
   params,
@@ -22,7 +28,7 @@ export default async function BookDetail({
 
   const pct = Math.round(book.progress * 100);
   const highlightCount = getHighlights(assetId).length;
-  const hasText = isDemoBook(book.title);
+  const hasText = book.assetId === getDemoAssetId();
 
   const actions = [
     { href: '/chat', title: 'Chat with Wormy', desc: 'Talk about the book — Wormy knows where you are' },

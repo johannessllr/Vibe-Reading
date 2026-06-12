@@ -10,7 +10,7 @@ An AI reading buddy as a local web app. You read a book in Apple Books on your M
 
 1. **A buddy with persistent memory.** A markdown memory file accumulates across sessions and books (knows you've read Stoicism, knows how you like to talk). The file shapes the buddy's personality over time.
 2. **Adaptive comprehension quizzes.** Questions start at a 12-year-old level and get harder as you answer well. Difficulty is tracked per book.
-3. **Flashcards from your real highlights.** Whatever you highlight in Apple Books becomes study material.
+3. **Flashcards from your real highlights.** Whatever you highlight in Apple Books becomes study material. Cards are selective: only hard, genuinely learnable facts (names, numbers, definitions, concrete claims) — not a card for every sentence.
 4. **Spoiler awareness with two modes (per-book setting).**
    - **Strict** (fiction): the buddy only sees text up to your current position and playfully refuses to go beyond.
    - **Guide** (non-fiction, default for the demo book): the buddy sees the whole book but anchors discussion to your position — it may point ahead ("chapter 9 answers exactly that") and preview ideas without dumping later content in detail. Useful for tech books like *Vibe Coding*, where knowing that a question gets answered later is part of the value.
@@ -48,7 +48,7 @@ Bottom tab bar, always visible: **Books · Flashcards · Wormy**
 - **Book detail** — what you can do with this book: Chat and Quiz. Enabled only for books with extracted text (demo: Vibe Coding); other books show progress and highlights but no AI features.
 - **Chat (per book)** — streaming conversation. System prompt = memory file + book context per the spoiler mode. After a session, one extra Claude call rewrites the memory file.
 - **Quiz (per book)** — one question at a time, visible difficulty level (e.g., "Level 2/5"). Correct answers ramp the level up; state persists in `state.json`.
-- **Flashcards (cross-book)** — one deck generated from highlights across ALL books in the library, labeled by book.
+- **Flashcards (cross-book)** — one deck generated from highlights across ALL books in the library, labeled by book. Generation is selective: by default only the few most useful cards per highlight set — hard facts worth memorizing, not summaries of everything — with a "generate more" action if the reader wants a bigger deck.
 - **Wormy** — chat with Wormy independent of any book: reading recommendations from the library + memory, "how is my reading going", general talk. Settings live here too. Same memory file as book chats — one continuous companion.
 
 Design direction: shadcn/ui with a warm, book-ish aesthetic (cream paper, ink text, serif headings) — not default dashboard gray.
@@ -82,6 +82,13 @@ The memory file is pre-seeded with a plausible history so the buddy has personal
 - [ ] Read to ~30–50% so the spoiler filter visibly hides something
 - [ ] Seed the memory file
 - [ ] Claude API key in `.env.local`
+
+## Future ideas (not for the demo)
+
+Collected ideas worth building after the hackathon — not scheduled, no issues yet:
+
+- **Anki export.** Export the flashcard deck to Anki (and similar apps). Simplest path: a TSV/CSV file Anki imports natively; a real `.apkg` via a generator library is the fancier option.
+- **Flashcards from a chapter.** Besides highlight-based cards, pick a chapter and have the AI generate cards from its full text — same selectivity rule: only hard facts worth learning, default to the most useful few, "generate more" on demand.
 
 ## Out of scope
 

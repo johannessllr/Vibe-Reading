@@ -4,7 +4,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { getBooks, getHighlights } from '../src/lib/apple-books';
+import { getBooks, getHighlights, getAllHighlights } from '../src/lib/apple-books';
 
 let libDb: string;
 let annDb: string;
@@ -52,5 +52,14 @@ describe('getHighlights', () => {
     expect(hs[0].text).toBe('highlighted sentence');
     expect(hs[0].note).toBe('my note');
     expect(hs[0].chapter).toBe('Chapter 3');
+  });
+});
+
+describe('getAllHighlights', () => {
+  it('returns highlights across all books, labeled with book titles', () => {
+    const all = getAllHighlights(libDb, annDb);
+    expect(all).toHaveLength(1);
+    expect(all[0].bookTitle).toBe('Vibe Coding');
+    expect(all[0].text).toBe('highlighted sentence');
   });
 });

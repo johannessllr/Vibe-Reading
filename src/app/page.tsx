@@ -5,15 +5,21 @@ import { Badge } from '@/components/ui/badge';
 import { Greeting } from '@/components/greeting';
 import { getBooks } from '@/lib/apple-books';
 import { readMyBooks } from '@/lib/my-books';
+import { loadBook } from '@/lib/book';
 
 export const dynamic = 'force-dynamic'; // re-read Apple Books on every load
 
-// TODO(#4): once the book loader is merged, detect the demo book via
-// loadBook().assetId instead of this title match.
-const isDemoBook = (title: string) => title.toLowerCase().includes('vibe coding');
+function getDemoAssetId(): string | null {
+  try {
+    return loadBook().assetId;
+  } catch {
+    return null;
+  }
+}
 
 export default function Library() {
   const shelf = new Set(readMyBooks());
+  const demoAssetId = getDemoAssetId();
   const books = getBooks().filter((b) => shelf.has(b.assetId));
 
   return (
@@ -32,7 +38,7 @@ export default function Library() {
                 <CardHeader>
                   <CardTitle className="flex items-baseline justify-between gap-2 text-lg">
                     <span className="line-clamp-2">{b.title}</span>
-                    {isDemoBook(b.title) && <Badge>Wormy ready</Badge>}
+                    {b.assetId === demoAssetId && <Badge>Wormy ready</Badge>}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">

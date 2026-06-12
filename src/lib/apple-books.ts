@@ -83,3 +83,31 @@ export function getHighlights(
     db.close();
   }
 }
+
+/** Cross-book: every highlight in the library, labeled with its book title. */
+export function getAllHighlights(
+  libDbPath = findDb(join(CONTAINER, 'BKLibrary'), 'BKLibrary'),
+  annDbPath = findDb(join(CONTAINER, 'AEAnnotation'), 'AEAnnotation'),
+): (Highlight & { bookTitle: string })[] {
+  const titles = new Map(getBooks(libDbPath).map((b) => [b.assetId, b.title]));
+  const db = openSnapshot(annDbPath);
+  try {
+    const rows = db
+      .prepare(
+        `SELECT ZANNOTATIONASSETID assetId, ZANNOTATIONSELECTEDTEXT text,
+                ZANNOTATIONNOTE note, ZFUTUREPROOFING5 chapter,
+                ZANNOTATIONCREATIONDATE createdAt
+         FROM ZAEANNOTATION
+         WHERE ZANNOTATIONSELECTEDTEXT IS NOT NULL
+           AND ZANNOTATIONDELETED = 0
+         ORDER BY ZANNOTATIONCREATIONDATE ASC`,
+      )
+      .all() as unknown as (Highlight & { assetId: string })[];
+    return rows
+      .filter((r) => titles.has(r.assetId))
+      .map(({ assetId, ...h }) => ({ ...h, bookTitle: titles.get(assetId)! }));
+  } finally {
+    db.close();
+  }
+}
+
