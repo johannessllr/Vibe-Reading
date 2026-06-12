@@ -4,6 +4,7 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Greeting } from '@/components/greeting';
 import { getBooks } from '@/lib/apple-books';
+import { readMyBooks } from '@/lib/my-books';
 
 export const dynamic = 'force-dynamic'; // re-read Apple Books on every load
 
@@ -12,7 +13,8 @@ export const dynamic = 'force-dynamic'; // re-read Apple Books on every load
 const isDemoBook = (title: string) => title.toLowerCase().includes('vibe coding');
 
 export default function Library() {
-  const books = getBooks().filter((b) => b.progress > 0 || isDemoBook(b.title));
+  const shelf = new Set(readMyBooks());
+  const books = getBooks().filter((b) => shelf.has(b.assetId));
 
   return (
     <div className="space-y-8">
@@ -42,6 +44,14 @@ export default function Library() {
             </Link>
           );
         })}
+        <Link href="/add">
+          <Card className="flex h-full min-h-36 items-center justify-center border-dashed bg-white/40 border-[#e5dac5] transition hover:bg-white/70">
+            <CardContent className="pt-6 text-center">
+              <p className="text-3xl">+</p>
+              <p className="text-sm text-[#8a7a64]">Add a book</p>
+            </CardContent>
+          </Card>
+        </Link>
       </div>
       <p className="text-xs text-[#8a7a64]">Synced live from Apple Books</p>
     </div>
