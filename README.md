@@ -1,5 +1,9 @@
 # Vibe-Reading
 
+<p align="center">
+  <img src="docs/assets/wormy-intro.svg" alt="Wormy — Your AI Reading Buddy" width="100%" />
+</p>
+
 An AI reading buddy for people who read in Apple Books on macOS. Vibe-Reading reads your live Apple Books library, progress, highlights, and extracted book text, then gives you spoiler-aware chat, adaptive quizzes, highlight flashcards, and a persistent companion named Wormy.
 
 ## Current status
