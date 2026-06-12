@@ -32,9 +32,10 @@
 │       ├── quiz/page.tsx
 │       ├── flashcards/page.tsx
 │       └── api/
-│           ├── chat/route.ts      # streaming buddy chat
+│           ├── chat/route.ts      # streaming buddy chat (spoiler mode aware)
 │           ├── greeting/route.ts  # "since last time" line for home
 │           ├── memory/route.ts    # end-of-session memory rewrite
+│           ├── settings/route.ts  # spoiler mode get/set (strict | guide)
 │           ├── quiz/route.ts      # question generation + answer recording
 │           └── flashcards/route.ts
 ├── data/
@@ -461,7 +462,7 @@ git commit -m "feat(data): EPUB extraction script producing chunked book.json"
 ```ts
 // tests/book.test.ts
 import { describe, it, expect } from 'vitest';
-import { textUpTo, type BookData } from '../src/lib/book';
+import { textUpTo, textAfter, type BookData } from '../src/lib/book';
 
 const book: BookData = {
   title: 'T', author: 'A', assetId: 'X',
@@ -484,6 +485,12 @@ describe('textUpTo', () => {
     const text = textUpTo(book, 0.6, 10); // tiny budget
     expect(text.length).toBeLessThanOrEqual(10);
     expect(text).toContain('dle'); // tail of "middle" survives, start is cut
+  });
+
+  it('textAfter returns only the unread remainder (guide mode)', () => {
+    const text = textAfter(book, 0.6);
+    expect(text).toContain('spoiler');
+    expect(text).not.toContain('beginning');
   });
 });
 ```
@@ -525,6 +532,20 @@ export function textUpTo(
     .map((c) => c.text)
     .join('\n\n');
   return visible.length > maxChars ? visible.slice(-maxChars) : visible;
+}
+
+/** Guide mode: the not-yet-read remainder. Truncated from the END — the part
+ *  just ahead of the reader matters most for "this gets answered soon". */
+export function textAfter(
+  book: BookData,
+  progress: number,
+  maxChars = 40_000,
+): string {
+  const ahead = book.chunks
+    .filter((c) => c.position > progress)
+    .map((c) => c.text)
+    .join('\n\n');
+  return ahead.length > maxChars ? ahead.slice(0, maxChars) : ahead;
 }
 ```
 
@@ -601,15 +622,42 @@ export interface QuizState {
   correct: number;
 }
 
-const DEFAULT_STATE: QuizState = { level: 1, correctStreak: 0, asked: 0, correct: 0 };
+/** strict = fiction, never look ahead. guide = non-fiction, may point ahead. */
+export type SpoilerMode = 'strict' | 'guide';
 
-export function readQuizState(): QuizState {
+interface AppState {
+  quiz: QuizState;
+  spoilerMode: SpoilerMode;
+}
+
+const DEFAULT_STATE: AppState = {
+  quiz: { level: 1, correctStreak: 0, asked: 0, correct: 0 },
+  spoilerMode: 'guide',
+};
+
+function readState(): AppState {
   if (!existsSync(STATE_PATH)) return DEFAULT_STATE;
   return { ...DEFAULT_STATE, ...JSON.parse(readFileSync(STATE_PATH, 'utf8')) };
 }
 
-export function writeQuizState(s: QuizState): void {
+function writeState(s: AppState): void {
   writeFileSync(STATE_PATH, JSON.stringify(s, null, 1));
+}
+
+export function readQuizState(): QuizState {
+  return readState().quiz;
+}
+
+export function writeQuizState(q: QuizState): void {
+  writeState({ ...readState(), quiz: q });
+}
+
+export function readSpoilerMode(): SpoilerMode {
+  return readState().spoilerMode;
+}
+
+export function writeSpoilerMode(m: SpoilerMode): void {
+  writeState({ ...readState(), spoilerMode: m });
 }
 
 /** Pure difficulty ramp: 2 correct in a row → +1 level; wrong → −1. Range 1–5. */
@@ -655,7 +703,10 @@ export function applyAnswer(s: QuizState, wasCorrect: boolean): QuizState {
 - [ ] **Step 6: Seed `data/state.json`**
 
 ```json
-{ "level": 1, "correctStreak": 0, "asked": 0, "correct": 0 }
+{
+ "quiz": { "level": 1, "correctStreak": 0, "asked": 0, "correct": 0 },
+ "spoilerMode": "guide"
+}
 ```
 
 - [ ] **Step 7: Commit**
@@ -685,8 +736,8 @@ export const model = anthropic('claude-sonnet-4-6');
 ```ts
 import { streamText, convertToModelMessages, type UIMessage } from 'ai';
 import { model } from '@/lib/ai';
-import { readMemory } from '@/lib/memory';
-import { loadBook, textUpTo } from '@/lib/book';
+import { readMemory, readSpoilerMode } from '@/lib/memory';
+import { loadBook, textUpTo, textAfter } from '@/lib/book';
 import { getBooks } from '@/lib/apple-books';
 
 export const maxDuration = 60;
@@ -697,6 +748,27 @@ export async function POST(req: Request) {
   const book = loadBook();
   const live = getBooks().find((b) => b.assetId === book.assetId);
   const progress = live?.progress ?? 0;
+  const mode = readSpoilerMode();
+
+  const spoilerSection =
+    mode === 'strict'
+      ? `Below is ONLY the text he has read so far. HARD RULE: never reveal,
+hint at, or ask about anything beyond this point — even if you know the book.
+If asked about later parts, playfully refuse ("no spoilers from me").
+
+BOOK TEXT READ SO FAR:
+${textUpTo(book, progress)}`
+      : `This book is in GUIDE mode (non-fiction): you see the whole text,
+split into read and unread. Anchor the conversation to what he has read. You
+MAY point ahead — "that exact question gets answered in a later chapter" — and
+preview an idea in a sentence or two, but never lecture at length from the
+unread part. Make him want to keep reading.
+
+BOOK TEXT READ SO FAR (anchor here):
+${textUpTo(book, progress)}
+
+REMAINDER — NOT YET READ (point ahead, don't dump):
+${textAfter(book, progress)}`;
 
   const system = `You are Johannes's reading buddy — a single continuous companion
 across all his books and sessions. Your personality and shared history live in
@@ -706,13 +778,8 @@ YOUR MEMORY:
 ${readMemory()}
 
 CURRENT BOOK: "${book.title}" by ${book.author}.
-The reader is at ${(progress * 100).toFixed(0)}%. Below is ONLY the text he has
-read so far. HARD RULE: never reveal, hint at, or ask about anything beyond
-this point — even if you know the book. If asked about later parts, playfully
-refuse ("no spoilers from me").
-
-BOOK TEXT READ SO FAR:
-${textUpTo(book, progress)}`;
+The reader is at ${(progress * 100).toFixed(0)}%.
+${spoilerSection}`;
 
   const result = streamText({
     model,
@@ -801,20 +868,42 @@ ${transcript}`,
 }
 ```
 
-- [ ] **Step 3: Verify with curl**
+- [ ] **Step 3: Create `src/app/api/settings/route.ts`** (spoiler-mode toggle backend)
+
+```ts
+import { readSpoilerMode, writeSpoilerMode, type SpoilerMode } from '@/lib/memory';
+
+export async function GET() {
+  return Response.json({ spoilerMode: readSpoilerMode() });
+}
+
+export async function POST(req: Request) {
+  const { spoilerMode }: { spoilerMode: SpoilerMode } = await req.json();
+  if (spoilerMode !== 'strict' && spoilerMode !== 'guide') {
+    return Response.json({ error: 'spoilerMode must be strict|guide' }, { status: 400 });
+  }
+  writeSpoilerMode(spoilerMode);
+  return Response.json({ spoilerMode });
+}
+```
+
+- [ ] **Step 4: Verify with curl**
 
 ```bash
 curl -s localhost:3000/api/greeting
 curl -s -X POST localhost:3000/api/memory -H 'content-type: application/json' \
   -d '{"transcript":"user: I loved the chapter on X. buddy: ..."}' | head -c 300
 cat data/buddy-memory.md   # should now contain a new dated session entry
+curl -s localhost:3000/api/settings                       # {"spoilerMode":"guide"}
+curl -s -X POST localhost:3000/api/settings -H 'content-type: application/json' \
+  -d '{"spoilerMode":"strict"}'                           # toggles
 ```
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add src/app/api/greeting src/app/api/memory
-git commit -m "feat(ai): greeting route and end-of-session memory rewrite"
+git add src/app/api/greeting src/app/api/memory src/app/api/settings
+git commit -m "feat(ai): greeting, memory rewrite, and spoiler-mode settings routes"
 ```
 
 ---
@@ -1099,7 +1188,7 @@ git commit -m "feat(ui): warm theme and live home dashboard"
 ```tsx
 'use client';
 import { useChat } from '@ai-sdk/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1108,6 +1197,24 @@ export default function ChatPage() {
   const { messages, sendMessage, status } = useChat();
   const [input, setInput] = useState('');
   const [memorySaved, setMemorySaved] = useState(false);
+  const [mode, setMode] = useState<'strict' | 'guide'>('guide');
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then((r) => r.json())
+      .then((d) => setMode(d.spoilerMode))
+      .catch(() => {});
+  }, []);
+
+  const toggleMode = async () => {
+    const next = mode === 'guide' ? 'strict' : 'guide';
+    setMode(next);
+    await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ spoilerMode: next }),
+    });
+  };
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1137,13 +1244,18 @@ export default function ChatPage() {
     <div className="flex h-[85vh] flex-col space-y-4">
       <header className="flex items-center justify-between">
         <h1 className="text-2xl"><Link href="/">←</Link> Chat</h1>
-        <Button
-          variant="outline"
-          onClick={endSession}
-          disabled={messages.length === 0 || memorySaved}
-        >
-          {memorySaved ? 'Remembered ✓' : 'End session & remember'}
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="ghost" onClick={toggleMode} title="Strict: never look ahead. Guide: may point ahead to later chapters.">
+            {mode === 'guide' ? 'Guide mode' : 'Strict mode'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={endSession}
+            disabled={messages.length === 0 || memorySaved}
+          >
+            {memorySaved ? 'Remembered ✓' : 'End session & remember'}
+          </Button>
+        </div>
       </header>
 
       <div className="flex-1 space-y-3 overflow-y-auto rounded-lg border border-[#e5dac5] bg-white/70 p-4">
