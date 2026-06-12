@@ -2,6 +2,10 @@ import { generateText } from 'ai';
 import { model } from '@/lib/ai';
 import { readMemory, writeMemory } from '@/lib/memory';
 
+export async function GET() {
+  return Response.json({ memory: readMemory() });
+}
+
 export async function POST(req: Request) {
   const { transcript }: { transcript: string } = await req.json();
 
