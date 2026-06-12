@@ -11,7 +11,10 @@ An AI reading buddy as a local web app. You read a book in Apple Books on your M
 1. **A buddy with persistent memory.** A markdown memory file accumulates across sessions and books (knows you've read Stoicism, knows how you like to talk). The file shapes the buddy's personality over time.
 2. **Adaptive comprehension quizzes.** Questions start at a 12-year-old level and get harder as you answer well. Difficulty is tracked per book.
 3. **Flashcards from your real highlights.** Whatever you highlight in Apple Books becomes study material.
-4. **Spoiler-free awareness.** The buddy only ever sees book text up to your current reading position.
+4. **Spoiler awareness with two modes (per-book setting).**
+   - **Strict** (fiction): the buddy only sees text up to your current position and playfully refuses to go beyond.
+   - **Guide** (non-fiction, default for the demo book): the buddy sees the whole book but anchors discussion to your position — it may point ahead ("chapter 9 answers exactly that") and preview ideas without dumping later content in detail. Useful for tech books like *Vibe Coding*, where knowing that a question gets answered later is part of the value.
+   - The quiz only ever tests text up to the current position, in both modes.
 
 ## Why this architecture
 
@@ -31,7 +34,7 @@ One Next.js app (App Router), running locally. Three data sources:
 
 AI calls go through the AI SDK (streaming) to the Claude API.
 
-**Spoiler filter:** reading progress is a 0–1 fraction. Only text chunks whose position fraction is below the current progress go into the prompt. Approximate, but right for a demo.
+**Spoiler filter:** reading progress is a 0–1 fraction. In **strict** mode, only text chunks whose position fraction is below the current progress go into the prompt. In **guide** mode, all chunks go in, marked as read/unread relative to the position, with prompt instructions to anchor to the read part and only point ahead, never dump ahead. The mode lives in `data/state.json` and is toggleable in the chat UI.
 
 **SQLite safety:** Apple Books uses WAL files; we copy the database before reading so an open Apple Books doesn't bite us.
 
