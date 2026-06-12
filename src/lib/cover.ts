@@ -1,6 +1,6 @@
 // src/lib/cover.ts
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { join, dirname, extname } from 'node:path';
+import { join, dirname, extname, resolve, relative, isAbsolute } from 'node:path';
 
 const MIME: Record<string, string> = {
   '.jpg': 'image/jpeg',
@@ -14,6 +14,12 @@ const MIME: Record<string, string> = {
 export interface CoverFile {
   path: string;
   mime: string;
+}
+
+/** True when child resolves to a location inside (or equal to) root. */
+function within(root: string, child: string): boolean {
+  const rel = relative(resolve(root), resolve(child));
+  return !rel.startsWith('..') && !isAbsolute(rel);
 }
 
 /**
@@ -33,11 +39,17 @@ export function findCoverPath(bookPath: string | null): CoverFile | null {
     const opfRel = container.match(/full-path="([^"]+)"/)?.[1];
     if (!opfRel) return null;
     const opfPath = join(bookPath, opfRel);
+    if (!within(bookPath, opfPath)) return null;
     const opf = readFileSync(opfPath, 'utf8');
 
-    let href = opf
-      .match(/<item[^>]*properties="[^"]*cover-image[^"]*"[^>]*>/i)?.[0]
-      ?.match(/href="([^"]+)"/)?.[1];
+    let href: string | undefined;
+    for (const tag of opf.match(/<item[^>]*>/gi) ?? []) {
+      const props = tag.match(/properties="([^"]*)"/i)?.[1];
+      if (props?.split(/\s+/).includes('cover-image')) {
+        href = tag.match(/href="([^"]+)"/)?.[1];
+        break;
+      }
+    }
 
     if (!href) {
       const coverId =
@@ -52,7 +64,8 @@ export function findCoverPath(bookPath: string | null): CoverFile | null {
     }
     if (!href) return null;
 
-    const imgPath = join(dirname(opfPath), decodeURIComponent(href));
+    const imgPath = resolve(dirname(opfPath), decodeURIComponent(href));
+    if (!within(bookPath, imgPath)) return null;
     const mime = MIME[extname(imgPath).toLowerCase()];
     if (!mime || !existsSync(imgPath)) return null;
     return { path: imgPath, mime };

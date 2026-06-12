@@ -2,7 +2,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { findCoverPath } from '../src/lib/cover';
 
 const dirs: string[] = [];
@@ -63,5 +63,37 @@ describe('findCoverPath', () => {
     expect(findCoverPath(null)).toBeNull();
     expect(findCoverPath('/nonexistent/place.epub')).toBeNull();
     expect(findCoverPath(tmpdir())).toBeNull(); // dir without container.xml
+  });
+
+  it('does not follow a cover href outside the book folder', () => {
+    const outside = mkdtempSync(join(tmpdir(), 'outside-'));
+    dirs.push(outside);
+    writeFileSync(join(outside, 'leak.png'), 'outside-bytes');
+    const rel = relative(join(mkdtempSync(join(tmpdir(), 'epub-fixture-')), 'content'), join(outside, 'leak.png'));
+    dirs.push(mkdtempSync(join(tmpdir(), 'epub-fixture-')));
+    const dir = mkdtempSync(join(tmpdir(), 'epub-fixture-'));
+    dirs.push(dir);
+    mkdirSync(join(dir, 'META-INF'), { recursive: true });
+    writeFileSync(
+      join(dir, 'META-INF', 'container.xml'),
+      '<?xml version="1.0"?><container><rootfiles>' +
+        '<rootfile full-path="content/book.opf" media-type="application/oebps-package+xml"/>' +
+        '</rootfiles></container>',
+    );
+    mkdirSync(join(dir, 'content'), { recursive: true });
+    const relPath = relative(join(dir, 'content'), join(outside, 'leak.png'));
+    writeFileSync(
+      join(dir, 'content', 'book.opf'),
+      `<?xml version="1.0"?><package><manifest><item id="c" href="${relPath}" media-type="image/png" properties="cover-image"/></manifest></package>`,
+    );
+    expect(findCoverPath(dir)).toBeNull();
+  });
+
+  it('requires cover-image as a whole token, not a substring', () => {
+    const dir = makeEpub(
+      '<item id="thumb" href="images/wrong.jpg" media-type="image/jpeg" properties="cover-image-thumb"/>' +
+        '<item id="c" href="images/cover.jpg" media-type="image/jpeg" properties="svg cover-image"/>',
+    );
+    expect(findCoverPath(dir)?.path).toBe(join(dir, 'content', 'images', 'cover.jpg'));
   });
 });
