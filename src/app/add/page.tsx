@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getBooks } from '@/lib/apple-books';
+import { BookCover } from '@/components/book-cover';
 import { readMyBooks, addMyBook } from '@/lib/my-books';
 
 export const dynamic = 'force-dynamic';
@@ -32,11 +33,14 @@ export default function AddBooks() {
         {candidates.map((b) => (
           <Card key={b.assetId} className="bg-white/70 border-[#e5dac5]">
             <CardContent className="flex items-center justify-between gap-3 pt-6">
-              <div>
-                <p className="line-clamp-1">{b.title}</p>
-                <p className="text-xs text-[#8a7a64]">
-                  by {b.author ?? 'Unknown'} · {Math.round(b.progress * 100)}% read
-                </p>
+              <div className="flex min-w-0 items-center gap-3">
+                <BookCover assetId={b.assetId} title={b.title} size="sm" />
+                <div className="min-w-0">
+                  <p className="line-clamp-1">{b.title}</p>
+                  <p className="text-xs text-[#8a7a64]">
+                    by {b.author ?? 'Unknown'} · {Math.round(b.progress * 100)}% read
+                  </p>
+                </div>
               </div>
               <form action={add}>
                 <input type="hidden" name="assetId" value={b.assetId} />
