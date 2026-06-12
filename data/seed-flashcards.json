@@ -1,0 +1,29 @@
+{
+  "cards": [
+    {
+      "front": "What does FAAFO stand for — the five dimensions along which vibe coding creates value?",
+      "back": "Fast, Ambitious, Autonomous, Fun, and Optionality.",
+      "book": "Vibe Coding"
+    },
+    {
+      "front": "Who coined the term “vibe coding,” and when?",
+      "back": "Andrej Karpathy, in a viral tweet in February 2025: “fully give in to the vibes, embrace exponentials, and forget that the code even exists.”",
+      "book": "Vibe Coding"
+    },
+    {
+      "front": "Why is there no “B” (for better) in FAAFO?",
+      "back": "Vibe coding does not automatically make your code better — that remains the developer's responsibility.",
+      "book": "Vibe Coding"
+    },
+    {
+      "front": "In the Adidas 700-developer case study, what productivity gains did the second AI pilot deliver?",
+      "back": "70% of developers saw 20–30% productivity gains, and engineers reported about 50% more “Happy Time” (time spent on work they actually want to do).",
+      "book": "Vibe Coding"
+    },
+    {
+      "front": "What is Brooks's Law, and why does it happen?",
+      "back": "Adding manpower to a late software project makes it later (Dr. Fred Brooks, The Mythical Man-Month) — communication lines grow exponentially with team size: 3 people have 3 lines, 10 people have 45.",
+      "book": "Vibe Coding"
+    }
+  ]
+}
