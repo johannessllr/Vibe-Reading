@@ -24,8 +24,17 @@ export default function FlashcardsPage() {
   };
 
   useEffect(() => {
-    load(count);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    let ignore = false;
+
+    fetch('/api/flashcards?count=8')
+      .then((r) => r.json())
+      .then((d: { cards: Flashcard[] }) => {
+        if (!ignore) setCards(d.cards);
+      });
+
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   const generateMore = () => {
