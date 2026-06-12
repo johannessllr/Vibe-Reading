@@ -44,7 +44,7 @@ The buddy has a name: **Wormy** (a bookworm — future: animated mascot icon).
 
 Bottom tab bar, always visible: **Books · Flashcards · Wormy**
 
-- **Books (home)** — the collection: all books from Apple Books with live progress and a Wormy greeting at the top. Tap a book → its detail page.
+- **Books (home)** — a curated shelf, not the whole Apple Books library: only books the reader has explicitly added, with live progress and a Wormy greeting at the top. Tap a book → its detail page. An "Add a book" flow lists the remaining Apple Books titles to pick from; books can be removed from the shelf on their detail page. The selection lives in `data/my-books.json`.
 - **Book detail** — what you can do with this book: Chat and Quiz. Enabled only for books with extracted text (demo: Vibe Coding); other books show progress and highlights but no AI features.
 - **Chat (per book)** — streaming conversation. System prompt = memory file + book context per the spoiler mode. After a session, one extra Claude call rewrites the memory file.
 - **Quiz (per book)** — one question at a time, visible difficulty level (e.g., "Level 2/5"). Correct answers ramp the level up; state persists in `state.json`.

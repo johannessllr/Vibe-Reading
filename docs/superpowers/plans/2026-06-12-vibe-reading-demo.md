@@ -1872,6 +1872,196 @@ git commit -m "feat(ui): Wormy tab with book-independent chat and memory peek"
 
 ---
 
+### Task 17: Curated shelf — add/remove books `[ui]`
+
+Home shows only books the reader explicitly added (not the whole Apple Books library). Selection lives in `data/my-books.json`, mutated via Server Actions.
+
+**Files:**
+- Create: `src/lib/my-books.ts`, `src/app/add/page.tsx`, `data/my-books.json`
+- Modify: `src/app/page.tsx` (filter by shelf + "Add a book" card), `src/app/book/[assetId]/page.tsx` (remove button), `src/components/bottom-nav.tsx` (`/add` counts as Books tab)
+- Test: `tests/my-books.test.ts`
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+// tests/my-books.test.ts
+import { describe, it, expect } from 'vitest';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { readMyBooks, addMyBook, removeMyBook } from '../src/lib/my-books';
+
+describe('my-books shelf', () => {
+  const file = join(mkdtempSync(join(tmpdir(), 'shelf-')), 'my-books.json');
+
+  it('starts empty, adds without duplicates, removes', () => {
+    expect(readMyBooks(file)).toEqual([]);
+    addMyBook('A', file);
+    addMyBook('A', file);
+    addMyBook('B', file);
+    expect(readMyBooks(file)).toEqual(['A', 'B']);
+    removeMyBook('A', file);
+    expect(readMyBooks(file)).toEqual(['B']);
+  });
+});
+```
+
+- [ ] **Step 2: Run test — expect FAIL** (module missing)
+
+- [ ] **Step 3: Implement `src/lib/my-books.ts`**
+
+```ts
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+
+const DEFAULT_PATH = join(process.cwd(), 'data/my-books.json');
+
+export function readMyBooks(path = DEFAULT_PATH): string[] {
+  if (!existsSync(path)) return [];
+  return JSON.parse(readFileSync(path, 'utf8')).assetIds ?? [];
+}
+
+function writeMyBooks(assetIds: string[], path: string): void {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify({ assetIds }, null, 1));
+}
+
+export function addMyBook(assetId: string, path = DEFAULT_PATH): void {
+  const ids = readMyBooks(path);
+  if (!ids.includes(assetId)) writeMyBooks([...ids, assetId], path);
+}
+
+export function removeMyBook(assetId: string, path = DEFAULT_PATH): void {
+  writeMyBooks(readMyBooks(path).filter((id) => id !== assetId), path);
+}
+```
+
+- [ ] **Step 4: Run tests — expect PASS, then seed `data/my-books.json`**
+
+```json
+{ "assetIds": [] }
+```
+
+- [ ] **Step 5: Create `src/app/add/page.tsx`** (Server Action does the mutation — no API route needed)
+
+```tsx
+import Link from 'next/link';
+import { revalidatePath } from 'next/cache';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { getBooks } from '@/lib/apple-books';
+import { readMyBooks, addMyBook } from '@/lib/my-books';
+
+export const dynamic = 'force-dynamic';
+
+export default function AddBooks() {
+  const shelf = new Set(readMyBooks());
+  const candidates = getBooks().filter((b) => !shelf.has(b.assetId));
+
+  async function add(formData: FormData) {
+    'use server';
+    addMyBook(String(formData.get('assetId')));
+    revalidatePath('/');
+    revalidatePath('/add');
+  }
+
+  return (
+    <div className="space-y-6">
+      <header className="space-y-2">
+        <p className="text-sm">
+          <Link href="/" className="text-[#8a7a64]">← Your books</Link>
+        </p>
+        <h1 className="text-3xl">Add a book</h1>
+        <p className="text-sm text-[#5a4a38]">From your Apple Books library</p>
+      </header>
+
+      <div className="space-y-3">
+        {candidates.map((b) => (
+          <Card key={b.assetId} className="bg-white/70 border-[#e5dac5]">
+            <CardContent className="flex items-center justify-between gap-3 pt-6">
+              <div>
+                <p className="line-clamp-1">{b.title}</p>
+                <p className="text-xs text-[#8a7a64]">
+                  by {b.author ?? 'Unknown'} · {Math.round(b.progress * 100)}% read
+                </p>
+              </div>
+              <form action={add}>
+                <input type="hidden" name="assetId" value={b.assetId} />
+                <Button type="submit" variant="outline">Add</Button>
+              </form>
+            </CardContent>
+          </Card>
+        ))}
+        {candidates.length === 0 && (
+          <p className="text-sm text-[#8a7a64]">Everything is already on your shelf.</p>
+        )}
+      </div>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 6: Filter home by the shelf** — in `src/app/page.tsx`, replace the books line and add the "Add a book" card after the grid's book cards:
+
+```tsx
+import { readMyBooks } from '@/lib/my-books';
+// inside Library():
+const shelf = new Set(readMyBooks());
+const books = getBooks().filter((b) => shelf.has(b.assetId));
+```
+
+```tsx
+{/* last cell in the grid, after books.map(...) */}
+<Link href="/add">
+  <Card className="flex h-full min-h-36 items-center justify-center border-dashed bg-white/40 border-[#e5dac5] transition hover:bg-white/70">
+    <CardContent className="pt-6 text-center">
+      <p className="text-3xl">+</p>
+      <p className="text-sm text-[#8a7a64]">Add a book</p>
+    </CardContent>
+  </Card>
+</Link>
+```
+
+- [ ] **Step 7: Remove button on `src/app/book/[assetId]/page.tsx`** (bottom of the page)
+
+```tsx
+import { redirect } from 'next/navigation';
+import { removeMyBook } from '@/lib/my-books';
+import { Button } from '@/components/ui/button';
+// at the end of the returned JSX:
+<form
+  action={async () => {
+    'use server';
+    removeMyBook(assetId);
+    redirect('/');
+  }}
+>
+  <Button variant="ghost" className="text-[#8a7a64]">
+    Remove from my shelf
+  </Button>
+</form>
+```
+
+- [ ] **Step 8: Bottom nav** — in `src/components/bottom-nav.tsx`, `/add` belongs to the Books tab:
+
+```tsx
+const active =
+  t.href === '/'
+    ? pathname === '/' || pathname.startsWith('/book') || pathname === '/add'
+    : pathname.startsWith(t.href);
+```
+
+- [ ] **Step 9: Verify in browser** — home is empty with an "Add a book" card → add Vibe Coding from the picker → it appears on the shelf → remove works.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add src/lib/my-books.ts src/app/add src/app/page.tsx "src/app/book/[assetId]/page.tsx" src/components/bottom-nav.tsx tests/my-books.test.ts data/my-books.json
+git commit -m "feat(ui): curated shelf — add/remove books from Apple Books library"
+```
+
+---
+
 ## Demo-day script (5 minutes)
 
 1. Open Apple Books, show you're mid-book, make a highlight live.
