@@ -1,3 +1,5 @@
+@AGENTS.md
+
 # Vibe-Reading — Instructions for Claude
 
 You are working on a hackathon project: an AI reading buddy that reads live
