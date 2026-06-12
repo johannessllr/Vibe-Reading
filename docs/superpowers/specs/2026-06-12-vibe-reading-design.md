@@ -17,7 +17,7 @@ An AI reading buddy as a local web app. You read a book in Apple Books on your M
 
 - **Local Next.js app, no deployment.** Apple Books data lives on the Mac, so the app runs there too. A localhost browser tab demos identically to a deployed app, and we skip databases, sync agents, and auth entirely.
 - **Apple Books over Kindle.** Verified working: `BKLibrary…sqlite` has every book plus reading progress (0–1 fraction), `AEAnnotation…sqlite` has highlights with selected text. Kindle has no public API and only fragile scraping routes — not worth hackathon time.
-- **Pre-extracted book text.** Apple-purchased books are DRM-protected; sideloaded EPUBs are plain zip files. We pick one DRM-free book from Johannes's library, extract its text once with a script into chunked JSON (chapter + position fraction per chunk), and commit that to the repo. No live EPUB parsing in the demo.
+- **Pre-extracted book text.** Apple-purchased books are DRM-protected; sideloaded EPUBs are plain zip files. We pick one DRM-free book from Johannes's library and extract its text once with a script into chunked JSON (chapter + position fraction per chunk). No live EPUB parsing in the demo. The repo is public, so the EPUB and the extracted `data/book.json` are **gitignored** (copyrighted text) — each teammate gets the EPUB from Johannes directly and runs the extraction locally, or develops against the stub in CLAUDE.md.
 
 ## Architecture
 
@@ -56,7 +56,7 @@ The memory file is pre-seeded with a plausible history so the buddy has personal
 
 | Hardcoded | Live |
 |---|---|
-| Demo book text (extracted once, committed) | Reading position from Apple Books |
+| Demo book text (extracted once, gitignored) | Reading position from Apple Books |
 | Seeded initial memory file | Highlights from Apple Books |
 | Single demo book (no book picker needed) | All AI conversations, quiz generation, memory updates |
 

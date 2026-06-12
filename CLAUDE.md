@@ -21,8 +21,12 @@ adaptive quizzes, flashcards, and a persistent memory file.
 
 - Task 1 (scaffold) must be merged before everything else
 - Within an area, do tasks in number order; across areas, work in parallel
-- UI and AI tasks don't need real extraction: if `data/book.json` doesn't exist
-  yet, create a stub so you can work:
+- **`data/book.json` and `*.epub` are gitignored** — the repo is public and the
+  book text is copyrighted. To work with the real book: get the demo EPUB from
+  Johannes (AirDrop/iCloud), drag it into Apple Books, open it once, then run
+  `npm run extract-book -- --title "Vibe Coding"`.
+- Alternatively, UI and AI tasks don't need real extraction: if `data/book.json`
+  doesn't exist yet, create a local stub so you can work:
 
 ```json
 { "title": "Stub Book", "author": "Test", "assetId": "ASSET1",
@@ -30,7 +34,7 @@ adaptive quizzes, flashcards, and a persistent memory file.
               { "position": 0.5, "text": "The middle part." } ] }
 ```
 
-(Don't commit a stub over a real `data/book.json`.)
+(It's gitignored either way — stubs and real extractions both stay local.)
 
 ## Environment facts (don't rediscover these)
 
