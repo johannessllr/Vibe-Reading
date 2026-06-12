@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { generateObject } from 'ai';
 import { z } from 'zod';
 import { model } from '@/lib/ai';
@@ -9,6 +11,20 @@ const cardsSchema = z.object({
   ),
 });
 
+type Card = z.infer<typeof cardsSchema>['cards'][number];
+
+// Hand-curated starter deck so the page is never empty (e.g. demo machines
+// without highlights). Highlight-generated cards are appended after these.
+function seedCards(): Card[] {
+  try {
+    return JSON.parse(
+      readFileSync(join(process.cwd(), 'data/seed-flashcards.json'), 'utf8'),
+    ).cards;
+  } catch {
+    return [];
+  }
+}
+
 // Cross-book deck. Selective by design: only hard, learnable facts — not a
 // card per highlight. ?count= raises the cap ("Generate more" in the UI).
 export async function GET(req: Request) {
@@ -16,7 +32,8 @@ export async function GET(req: Request) {
     Number(new URL(req.url).searchParams.get('count')) || 8,
     30,
   );
-  // Apple Books may be absent on a dev machine — fall back to an empty deck.
+  const seeds = seedCards();
+  // Apple Books may be absent on a dev machine — fall back to the seed deck.
   let highlights;
   try {
     highlights = getAllHighlights();
@@ -24,7 +41,10 @@ export async function GET(req: Request) {
     highlights = [];
   }
   if (highlights.length === 0) {
-    return Response.json({ cards: [], note: 'No highlights in Apple Books yet.' });
+    return Response.json({
+      cards: seeds,
+      note: seeds.length === 0 ? 'No highlights in Apple Books yet.' : undefined,
+    });
   }
 
   const { object } = await generateObject({
@@ -38,7 +58,14 @@ Front: a question testing the fact. Back: the answer, grounded in the
 highlight. Set "book" to the book title the highlight came from. Include the
 reader's own note if there is one.
 
-HIGHLIGHTS:
+${
+  seeds.length > 0
+    ? `These cards are ALREADY in the deck — do not create near-duplicates of them:
+${seeds.map((c) => `- ${c.front}`).join('\n')}
+
+`
+    : ''
+}HIGHLIGHTS:
 ${highlights
   .map(
     (h) =>
@@ -46,5 +73,5 @@ ${highlights
   )
   .join('\n')}`,
   });
-  return Response.json(object);
+  return Response.json({ cards: [...seeds, ...object.cards] });
 }
