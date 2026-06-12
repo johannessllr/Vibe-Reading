@@ -19,15 +19,42 @@ export interface QuizState {
   correct: number;
 }
 
-const DEFAULT_STATE: QuizState = { level: 1, correctStreak: 0, asked: 0, correct: 0 };
+/** strict = fiction, never look ahead. guide = non-fiction, may point ahead. */
+export type SpoilerMode = 'strict' | 'guide';
 
-export function readQuizState(): QuizState {
+interface AppState {
+  quiz: QuizState;
+  spoilerMode: SpoilerMode;
+}
+
+const DEFAULT_STATE: AppState = {
+  quiz: { level: 1, correctStreak: 0, asked: 0, correct: 0 },
+  spoilerMode: 'guide',
+};
+
+function readState(): AppState {
   if (!existsSync(STATE_PATH)) return DEFAULT_STATE;
   return { ...DEFAULT_STATE, ...JSON.parse(readFileSync(STATE_PATH, 'utf8')) };
 }
 
-export function writeQuizState(s: QuizState): void {
+function writeState(s: AppState): void {
   writeFileSync(STATE_PATH, JSON.stringify(s, null, 1));
+}
+
+export function readQuizState(): QuizState {
+  return readState().quiz;
+}
+
+export function writeQuizState(q: QuizState): void {
+  writeState({ ...readState(), quiz: q });
+}
+
+export function readSpoilerMode(): SpoilerMode {
+  return readState().spoilerMode;
+}
+
+export function writeSpoilerMode(m: SpoilerMode): void {
+  writeState({ ...readState(), spoilerMode: m });
 }
 
 /** Pure difficulty ramp: 2 correct in a row → +1 level; wrong → −1. Range 1–5. */

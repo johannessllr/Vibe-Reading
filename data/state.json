@@ -1,1 +1,4 @@
-{ "level": 1, "correctStreak": 0, "asked": 0, "correct": 0 }
+{
+ "quiz": { "level": 1, "correctStreak": 0, "asked": 0, "correct": 0 },
+ "spoilerMode": "guide"
+}
