@@ -48,6 +48,9 @@ adaptive quizzes, flashcards, and a persistent memory file.
 - EPUB metadata can be garbage (hash titles) — trust the Apple Books DB title, not the OPF
 - Tests (`npm test`, vitest) use fixture SQLite DBs and run on any machine; the real Apple Books reads only work on a Mac with books in it
 - `ANTHROPIC_API_KEY` goes in `.env.local` (never commit it)
+- Book covers come from the unpacked EPUB folders via `GET /api/cover/[assetId]`
+  (`src/lib/cover.ts` resolves container.xml → OPF → cover item); DRM'd books and
+  PDFs 404 and `<BookCover>` falls back to a generated gradient placeholder
 
 ## Rules
 
