@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardTitle } from '@/components/ui/card';
+import { BookCover } from '@/components/book-cover';
 import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Greeting } from '@/components/greeting';
@@ -35,16 +36,17 @@ export default function Library() {
           return (
             <Link key={b.assetId} href={`/book/${b.assetId}`}>
               <Card className="h-full bg-white/70 border-[#e5dac5] transition hover:-translate-y-0.5 hover:shadow-md">
-                <CardHeader>
-                  <CardTitle className="flex items-baseline justify-between gap-2 text-lg">
-                    <span className="line-clamp-2">{b.title}</span>
-                    {b.assetId === demoAssetId && <Badge>Wormy ready</Badge>}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <p className="text-sm text-[#5a4a38]">by {b.author ?? 'Unknown'}</p>
-                  <Progress value={pct} />
-                  <p className="text-xs text-[#8a7a64]">{pct}% read</p>
+                <CardContent className="flex gap-4 pt-6">
+                  <BookCover assetId={b.assetId} title={b.title} size="md" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <CardTitle className="flex items-baseline justify-between gap-2 text-lg">
+                      <span className="line-clamp-2">{b.title}</span>
+                      {b.assetId === demoAssetId && <Badge>Wormy ready</Badge>}
+                    </CardTitle>
+                    <p className="text-sm text-[#5a4a38]">by {b.author ?? 'Unknown'}</p>
+                    <Progress value={pct} />
+                    <p className="text-xs text-[#8a7a64]">{pct}% read</p>
+                  </div>
                 </CardContent>
               </Card>
             </Link>

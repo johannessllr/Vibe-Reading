@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { getBooks, getHighlights } from '@/lib/apple-books';
 import { removeMyBook } from '@/lib/my-books';
 import { loadBook } from '@/lib/book';
+import { BookCover } from '@/components/book-cover';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,8 +42,13 @@ export default async function BookDetail({
         <p className="text-sm">
           <Link href="/" className="text-[#8a7a64]">← Your books</Link>
         </p>
-        <h1 className="text-3xl">{book.title}</h1>
-        <p className="text-sm text-[#5a4a38]">by {book.author ?? 'Unknown'}</p>
+        <div className="flex items-start gap-4">
+          <BookCover assetId={book.assetId} title={book.title} size="lg" />
+          <div className="min-w-0 space-y-1 pt-1">
+            <h1 className="text-3xl">{book.title}</h1>
+            <p className="text-sm text-[#5a4a38]">by {book.author ?? 'Unknown'}</p>
+          </div>
+        </div>
       </header>
 
       <Card className="bg-white/70 border-[#e5dac5]">
