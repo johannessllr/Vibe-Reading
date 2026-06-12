@@ -4,6 +4,7 @@ import { DefaultChatTransport } from 'ai';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { WormyMascot, type WormyMood } from '@/components/wormy-mascot';
 
 export default function WormyPage() {
   const { messages, sendMessage, status } = useChat({
@@ -27,11 +28,22 @@ export default function WormyPage() {
     setInput('');
   };
 
+  // Wormy's pose follows the conversation: thinking while he answers,
+  // waving when the tab is fresh, happy once he's replied.
+  const busy = status === 'submitted' || status === 'streaming';
+  const mood: WormyMood = busy
+    ? 'think'
+    : messages.length === 0
+      ? 'wave'
+      : 'happy';
+
   return (
     <div className="flex h-[85vh] flex-col space-y-4">
       <header className="flex items-center justify-between">
-        {/* future: animated Wormy mascot instead of the emoji */}
-        <h1 className="text-2xl">🪱 Wormy</h1>
+        <div className="flex items-center gap-2">
+          <WormyMascot mood={mood} size={56} />
+          <h1 className="text-2xl">Wormy</h1>
+        </div>
         <Button variant="outline" onClick={() => setShowMemory(!showMemory)}>
           {showMemory ? 'Hide memory' : 'What Wormy remembers'}
         </Button>
