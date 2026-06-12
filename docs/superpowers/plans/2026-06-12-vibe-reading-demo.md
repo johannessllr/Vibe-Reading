@@ -1043,8 +1043,13 @@ const cardsSchema = z.object({
   ),
 });
 
-// Cross-book: one deck from highlights across ALL books in the library.
-export async function GET() {
+// Cross-book deck. Selective by design: only hard, learnable facts — not a
+// card per highlight. ?count= raises the cap ("Generate more" in the UI).
+export async function GET(req: Request) {
+  const count = Math.min(
+    Number(new URL(req.url).searchParams.get('count')) || 8,
+    30,
+  );
   const highlights = getAllHighlights();
   if (highlights.length === 0) {
     return Response.json({ cards: [], note: 'No highlights in Apple Books yet.' });
@@ -1053,10 +1058,13 @@ export async function GET() {
   const { object } = await generateObject({
     model,
     schema: cardsSchema,
-    prompt: `Turn these reader highlights (from several books) into study
-flashcards (one per highlight, max 15). Front: a question testing the idea.
-Back: the answer, grounded in the highlight. Set "book" to the book title the
-highlight came from. Include the reader's own note if there is one.
+    prompt: `From these reader highlights (from several books), create AT MOST
+${count} flashcards — fewer is better than padded. Be selective: only hard,
+genuinely learnable facts (names, numbers, definitions, concrete claims).
+Skip highlights that don't contain one. Order by usefulness, best first.
+Front: a question testing the fact. Back: the answer, grounded in the
+highlight. Set "book" to the book title the highlight came from. Include the
+reader's own note if there is one.
 
 HIGHLIGHTS:
 ${highlights
@@ -1581,12 +1589,29 @@ export default function FlashcardsPage() {
   const [cards, setCards] = useState<Flashcard[] | null>(null);
   const [idx, setIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
+  const [count, setCount] = useState(8);
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  const load = (n: number) => {
+    setLoadingMore(true);
+    fetch(`/api/flashcards?count=${n}`)
+      .then((r) => r.json())
+      .then((d) => {
+        setCards(d.cards);
+        setLoadingMore(false);
+      });
+  };
 
   useEffect(() => {
-    fetch('/api/flashcards')
-      .then((r) => r.json())
-      .then((d) => setCards(d.cards));
+    load(count);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const generateMore = () => {
+    const next = count + 8;
+    setCount(next);
+    load(next);
+  };
 
   if (cards === null)
     return <p className="italic text-[#8a7a64]">Reading your highlights…</p>;
@@ -1626,6 +1651,14 @@ export default function FlashcardsPage() {
           onClick={() => { setIdx(idx - 1); setFlipped(false); }}
         >
           Previous
+        </Button>
+        <Button
+          variant="ghost"
+          disabled={loadingMore}
+          onClick={generateMore}
+          title="The deck is deliberately small — only the most learnable facts. This asks for more."
+        >
+          {loadingMore ? 'Generating…' : 'Generate more'}
         </Button>
         <Button
           disabled={idx === cards.length - 1}
