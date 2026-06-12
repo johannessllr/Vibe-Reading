@@ -69,8 +69,6 @@ describe('findCoverPath', () => {
     const outside = mkdtempSync(join(tmpdir(), 'outside-'));
     dirs.push(outside);
     writeFileSync(join(outside, 'leak.png'), 'outside-bytes');
-    const rel = relative(join(mkdtempSync(join(tmpdir(), 'epub-fixture-')), 'content'), join(outside, 'leak.png'));
-    dirs.push(mkdtempSync(join(tmpdir(), 'epub-fixture-')));
     const dir = mkdtempSync(join(tmpdir(), 'epub-fixture-'));
     dirs.push(dir);
     mkdirSync(join(dir, 'META-INF'), { recursive: true });
