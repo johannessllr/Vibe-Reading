@@ -38,14 +38,20 @@ AI calls go through the AI SDK (streaming) to the Claude API.
 
 **SQLite safety:** Apple Books uses WAL files; we copy the database before reading so an open Apple Books doesn't bite us.
 
-## Screens
+## Screens & navigation
 
-- **Home / "Your buddy"** — current book with live progress bar, a "since last time" greeting generated from the memory file, entry points to Chat, Quiz, Flashcards.
-- **Chat** — streaming conversation. System prompt = memory file + book context up to current position. After a session, one extra Claude call summarizes what changed and rewrites the memory file.
-- **Quiz** — one question at a time, visible difficulty level (e.g., "Level 2/5"). Correct answers ramp the level up; state persists per book in `state.json`.
-- **Flashcards** — generated from real Apple Books highlights, flip-card UI.
+The buddy has a name: **Wormy** (a bookworm — future: animated mascot icon).
 
-Design direction: shadcn/ui with a warm, book-ish aesthetic — not default dashboard gray.
+Bottom tab bar, always visible: **Books · Flashcards · Wormy**
+
+- **Books (home)** — the collection: all books from Apple Books with live progress and a Wormy greeting at the top. Tap a book → its detail page.
+- **Book detail** — what you can do with this book: Chat and Quiz. Enabled only for books with extracted text (demo: Vibe Coding); other books show progress and highlights but no AI features.
+- **Chat (per book)** — streaming conversation. System prompt = memory file + book context per the spoiler mode. After a session, one extra Claude call rewrites the memory file.
+- **Quiz (per book)** — one question at a time, visible difficulty level (e.g., "Level 2/5"). Correct answers ramp the level up; state persists in `state.json`.
+- **Flashcards (cross-book)** — one deck generated from highlights across ALL books in the library, labeled by book.
+- **Wormy** — chat with Wormy independent of any book: reading recommendations from the library + memory, "how is my reading going", general talk. Settings live here too. Same memory file as book chats — one continuous companion.
+
+Design direction: shadcn/ui with a warm, book-ish aesthetic (cream paper, ink text, serif headings) — not default dashboard gray.
 
 ## The memory loop
 

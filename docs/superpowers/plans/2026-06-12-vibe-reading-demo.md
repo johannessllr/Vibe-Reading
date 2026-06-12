@@ -26,11 +26,14 @@
 │   │   ├── extract.ts             # pure helpers: stripHtml, chunkText (used by script)
 │   │   ├── memory.ts              # buddy-memory.md + state.json read/write, applyAnswer
 │   │   └── ai.ts                  # model client
+│   ├── components/bottom-nav.tsx  # Books · Flashcards · Wormy tab bar
 │   └── app/
-│       ├── layout.tsx, globals.css, page.tsx          # theme + home dashboard
+│       ├── layout.tsx, globals.css, page.tsx          # theme + library home
+│       ├── book/[assetId]/page.tsx# book detail: chat/quiz for this book
 │       ├── chat/page.tsx
 │       ├── quiz/page.tsx
-│       ├── flashcards/page.tsx
+│       ├── flashcards/page.tsx    # cross-book deck
+│       ├── wormy/page.tsx         # Wormy chat (no book) + memory peek
 │       └── api/
 │           ├── chat/route.ts      # streaming buddy chat (spoiler mode aware)
 │           ├── greeting/route.ts  # "since last time" line for home
@@ -125,7 +128,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { getBooks, getHighlights } from '../src/lib/apple-books';
+import { getBooks, getHighlights, getAllHighlights } from '../src/lib/apple-books';
 
 let libDb: string;
 let annDb: string;
@@ -173,6 +176,15 @@ describe('getHighlights', () => {
     expect(hs[0].text).toBe('highlighted sentence');
     expect(hs[0].note).toBe('my note');
     expect(hs[0].chapter).toBe('Chapter 3');
+  });
+});
+
+describe('getAllHighlights', () => {
+  it('returns highlights across all books, labeled with book titles', () => {
+    const all = getAllHighlights(libDb, annDb);
+    expect(all).toHaveLength(1);
+    expect(all[0].bookTitle).toBe('Vibe Coding');
+    expect(all[0].text).toBe('highlighted sentence');
   });
 });
 ```
@@ -266,6 +278,33 @@ export function getHighlights(
          ORDER BY ZANNOTATIONCREATIONDATE ASC`,
       )
       .all(assetId) as unknown as Highlight[];
+  } finally {
+    db.close();
+  }
+}
+
+/** Cross-book: every highlight in the library, labeled with its book title. */
+export function getAllHighlights(
+  libDbPath = findDb(join(CONTAINER, 'BKLibrary'), 'BKLibrary'),
+  annDbPath = findDb(join(CONTAINER, 'AEAnnotation'), 'AEAnnotation'),
+): (Highlight & { bookTitle: string })[] {
+  const titles = new Map(getBooks(libDbPath).map((b) => [b.assetId, b.title]));
+  const db = openSnapshot(annDbPath);
+  try {
+    const rows = db
+      .prepare(
+        `SELECT ZANNOTATIONASSETID assetId, ZANNOTATIONSELECTEDTEXT text,
+                ZANNOTATIONNOTE note, ZFUTUREPROOFING5 chapter,
+                ZANNOTATIONCREATIONDATE createdAt
+         FROM ZAEANNOTATION
+         WHERE ZANNOTATIONSELECTEDTEXT IS NOT NULL
+           AND ZANNOTATIONDELETED = 0
+         ORDER BY ZANNOTATIONCREATIONDATE ASC`,
+      )
+      .all() as unknown as (Highlight & { assetId: string })[];
+    return rows
+      .filter((r) => titles.has(r.assetId))
+      .map(({ assetId, ...h }) => ({ ...h, bookTitle: titles.get(assetId)! }));
   } finally {
     db.close();
   }
@@ -996,16 +1035,17 @@ git commit -m "feat(ai): adaptive quiz route with level-styled generation"
 import { generateObject } from 'ai';
 import { z } from 'zod';
 import { model } from '@/lib/ai';
-import { loadBook } from '@/lib/book';
-import { getHighlights } from '@/lib/apple-books';
+import { getAllHighlights } from '@/lib/apple-books';
 
 const cardsSchema = z.object({
-  cards: z.array(z.object({ front: z.string(), back: z.string() })),
+  cards: z.array(
+    z.object({ front: z.string(), back: z.string(), book: z.string() }),
+  ),
 });
 
+// Cross-book: one deck from highlights across ALL books in the library.
 export async function GET() {
-  const book = loadBook();
-  const highlights = getHighlights(book.assetId);
+  const highlights = getAllHighlights();
   if (highlights.length === 0) {
     return Response.json({ cards: [], note: 'No highlights in Apple Books yet.' });
   }
@@ -1013,14 +1053,17 @@ export async function GET() {
   const { object } = await generateObject({
     model,
     schema: cardsSchema,
-    prompt: `Turn these reader highlights from "${book.title}" into study
-flashcards (one per highlight, max 12). Front: a question testing the idea.
-Back: the answer, grounded in the highlight. Include the reader's own note
-if there is one.
+    prompt: `Turn these reader highlights (from several books) into study
+flashcards (one per highlight, max 15). Front: a question testing the idea.
+Back: the answer, grounded in the highlight. Set "book" to the book title the
+highlight came from. Include the reader's own note if there is one.
 
 HIGHLIGHTS:
 ${highlights
-  .map((h) => `- "${h.text}"${h.note ? ` (reader note: ${h.note})` : ''}`)
+  .map(
+    (h) =>
+      `- [${h.bookTitle}] "${h.text}"${h.note ? ` (reader note: ${h.note})` : ''}`,
+  )
   .join('\n')}`,
   });
   return Response.json(object);
@@ -1042,13 +1085,14 @@ git commit -m "feat(ai): flashcards generated from live Apple Books highlights"
 
 ---
 
-### Task 10: Theme + home dashboard `[ui]`
+### Task 10: Theme, bottom nav, library home, book detail `[ui]`
 
 Warm, book-ish look: cream paper background, ink text, a serif display font. Not dashboard gray.
+App structure: bottom tab bar (**Books · Flashcards · Wormy**). Home = the book collection; tapping a book opens its detail page with that book's actions (Chat, Quiz).
 
 **Files:**
 - Modify: `src/app/layout.tsx`, `src/app/globals.css`
-- Create: `src/app/page.tsx` (replace scaffold), `src/components/greeting.tsx`
+- Create: `src/app/page.tsx` (replace scaffold), `src/components/greeting.tsx`, `src/components/bottom-nav.tsx`, `src/app/book/[assetId]/page.tsx`
 
 - [ ] **Step 1: Set fonts and shell in `src/app/layout.tsx`**
 
@@ -1069,9 +1113,52 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${literata.variable} ${inter.variable}`}>
       <body className="min-h-screen bg-[#faf6ee] text-[#2b2118] font-sans antialiased">
-        <main className="mx-auto max-w-3xl px-6 py-10">{children}</main>
+        <main className="mx-auto max-w-3xl px-6 py-10 pb-28">{children}</main>
+        <BottomNav />
       </body>
     </html>
+  );
+}
+```
+
+(add `import { BottomNav } from '@/components/bottom-nav';` at the top — `pb-28` keeps content clear of the fixed tab bar)
+
+- [ ] **Step 1b: Create `src/components/bottom-nav.tsx`**
+
+```tsx
+'use client';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+
+const TABS = [
+  { href: '/', label: 'Books', icon: '📚' },
+  { href: '/flashcards', label: 'Flashcards', icon: '🗂️' },
+  { href: '/wormy', label: 'Wormy', icon: '🪱' }, // future: animated Wormy icon
+];
+
+export function BottomNav() {
+  const pathname = usePathname();
+  return (
+    <nav className="fixed inset-x-0 bottom-0 border-t border-[#e5dac5] bg-[#faf6ee]/95 backdrop-blur">
+      <div className="mx-auto flex max-w-3xl">
+        {TABS.map((t) => {
+          const active =
+            t.href === '/' ? pathname === '/' || pathname.startsWith('/book') : pathname.startsWith(t.href);
+          return (
+            <Link
+              key={t.href}
+              href={t.href}
+              className={`flex flex-1 flex-col items-center gap-0.5 py-2.5 text-xs transition ${
+                active ? 'text-[#2b2118] font-semibold' : 'text-[#8a7a64]'
+              }`}
+            >
+              <span className="text-lg leading-none">{t.icon}</span>
+              {t.label}
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
   );
 }
 ```
@@ -1104,7 +1191,7 @@ export function Greeting() {
 }
 ```
 
-- [ ] **Step 4: Replace `src/app/page.tsx`** (server component — live Apple Books read on every load)
+- [ ] **Step 4: Replace `src/app/page.tsx`** — the library (server component, live Apple Books read on every load)
 
 ```tsx
 import Link from 'next/link';
@@ -1113,67 +1200,132 @@ import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Greeting } from '@/components/greeting';
 import { loadBook } from '@/lib/book';
-import { getBooks, getHighlights } from '@/lib/apple-books';
+import { getBooks } from '@/lib/apple-books';
 
 export const dynamic = 'force-dynamic'; // re-read Apple Books on every load
 
-export default function Home() {
-  const book = loadBook();
-  const live = getBooks().find((b) => b.assetId === book.assetId);
-  const pct = Math.round((live?.progress ?? 0) * 100);
-  const highlightCount = getHighlights(book.assetId).length;
-
-  const features = [
-    { href: '/chat', title: 'Chat', desc: 'Talk about the book — spoiler-free' },
-    { href: '/quiz', title: 'Quiz', desc: 'Adaptive questions that grow with you' },
-    { href: '/flashcards', title: 'Flashcards', desc: `From your ${highlightCount} highlights` },
-  ];
+export default function Library() {
+  const demoAssetId = loadBook().assetId; // the one book with extracted text
+  const books = getBooks().filter((b) => b.progress > 0 || b.assetId === demoAssetId);
 
   return (
     <div className="space-y-8">
       <header className="space-y-2">
-        <h1 className="text-4xl">Vibe-Reading</h1>
+        <h1 className="text-4xl">Your books</h1>
         <Greeting />
       </header>
 
-      <Card className="bg-white/70 border-[#e5dac5]">
-        <CardHeader>
-          <CardTitle className="flex items-baseline justify-between">
-            <span>{book.title}</span>
-            <Badge variant="secondary">{pct}% read</Badge>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <p className="text-sm text-[#5a4a38]">by {book.author}</p>
-          <Progress value={pct} />
-          <p className="text-xs text-[#8a7a64]">
-            Position synced live from Apple Books
-          </p>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {features.map((f) => (
-          <Link key={f.href} href={f.href}>
-            <Card className="h-full bg-white/70 border-[#e5dac5] transition hover:-translate-y-0.5 hover:shadow-md">
-              <CardHeader><CardTitle>{f.title}</CardTitle></CardHeader>
-              <CardContent><p className="text-sm text-[#5a4a38]">{f.desc}</p></CardContent>
-            </Card>
-          </Link>
-        ))}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {books.map((b) => {
+          const pct = Math.round(b.progress * 100);
+          const hasText = b.assetId === demoAssetId;
+          return (
+            <Link key={b.assetId} href={`/book/${b.assetId}`}>
+              <Card className="h-full bg-white/70 border-[#e5dac5] transition hover:-translate-y-0.5 hover:shadow-md">
+                <CardHeader>
+                  <CardTitle className="flex items-baseline justify-between gap-2 text-lg">
+                    <span className="line-clamp-2">{b.title}</span>
+                    {hasText && <Badge>Wormy ready</Badge>}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <p className="text-sm text-[#5a4a38]">by {b.author ?? 'Unknown'}</p>
+                  <Progress value={pct} />
+                  <p className="text-xs text-[#8a7a64]">{pct}% read</p>
+                </CardContent>
+              </Card>
+            </Link>
+          );
+        })}
       </div>
+      <p className="text-xs text-[#8a7a64]">Synced live from Apple Books</p>
     </div>
   );
 }
 ```
 
-- [ ] **Step 5: Verify in browser** — `npm run dev`, open localhost:3000: greeting appears after a beat, progress matches Apple Books, three cards link onward.
+- [ ] **Step 5: Create `src/app/book/[assetId]/page.tsx`** — what you can do with this book
 
-- [ ] **Step 6: Commit**
+```tsx
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
+import { loadBook } from '@/lib/book';
+import { getBooks, getHighlights } from '@/lib/apple-books';
+
+export const dynamic = 'force-dynamic';
+
+export default async function BookDetail({
+  params,
+}: {
+  params: Promise<{ assetId: string }>;
+}) {
+  const { assetId } = await params;
+  const book = getBooks().find((b) => b.assetId === assetId);
+  if (!book) notFound();
+
+  const pct = Math.round(book.progress * 100);
+  const highlightCount = getHighlights(assetId).length;
+  const hasText = loadBook().assetId === assetId;
+
+  const actions = [
+    { href: '/chat', title: 'Chat with Wormy', desc: 'Talk about the book — Wormy knows where you are' },
+    { href: '/quiz', title: 'Quiz', desc: 'Adaptive questions that grow with you' },
+  ];
+
+  return (
+    <div className="space-y-8">
+      <header className="space-y-2">
+        <p className="text-sm"><Link href="/" className="text-[#8a7a64]">← Your books</Link></p>
+        <h1 className="text-3xl">{book.title}</h1>
+        <p className="text-sm text-[#5a4a38]">by {book.author ?? 'Unknown'}</p>
+      </header>
+
+      <Card className="bg-white/70 border-[#e5dac5]">
+        <CardContent className="space-y-2 pt-6">
+          <Progress value={pct} />
+          <p className="text-xs text-[#8a7a64]">
+            {pct}% read · {highlightCount} highlights · synced from Apple Books
+          </p>
+        </CardContent>
+      </Card>
+
+      {hasText ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {actions.map((a) => (
+            <Link key={a.href} href={a.href}>
+              <Card className="h-full bg-white/70 border-[#e5dac5] transition hover:-translate-y-0.5 hover:shadow-md">
+                <CardHeader><CardTitle>{a.title}</CardTitle></CardHeader>
+                <CardContent><p className="text-sm text-[#5a4a38]">{a.desc}</p></CardContent>
+              </Card>
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <Card className="bg-white/40 border-dashed border-[#e5dac5]">
+          <CardContent className="pt-6">
+            <p className="text-sm text-[#8a7a64]">
+              Wormy hasn’t read this one yet — chat and quiz need the book text
+              (run the extraction script for DRM-free books). Your highlights
+              still feed the shared flashcard deck.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+```
+
+- [ ] **Step 6: Verify in browser** — `npm run dev`, open localhost:3000: library grid with live progress, tab bar at the bottom, tapping the demo book shows Chat/Quiz, tapping another book shows the "Wormy hasn't read this one yet" card.
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/app/layout.tsx src/app/globals.css src/app/page.tsx src/components/greeting.tsx
-git commit -m "feat(ui): warm theme and live home dashboard"
+git add src/app/layout.tsx src/app/globals.css src/app/page.tsx src/app/book src/components
+git commit -m "feat(ui): theme, bottom nav, library home, book detail page"
 ```
 
 ---
@@ -1423,7 +1575,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 
-interface Flashcard { front: string; back: string }
+interface Flashcard { front: string; back: string; book: string }
 
 export default function FlashcardsPage() {
   const [cards, setCards] = useState<Flashcard[] | null>(null);
@@ -1463,6 +1615,7 @@ export default function FlashcardsPage() {
             {flipped ? 'Answer' : 'Question — tap to flip'}
           </p>
           <p className="mt-3 text-lg">{flipped ? card.back : card.front}</p>
+          <p className="mt-4 text-xs text-[#8a7a64]">from “{card.book}”</p>
         </CardContent>
       </Card>
 
@@ -1542,6 +1695,179 @@ buddy whose memory of you grows across sessions (see `data/buddy-memory.md`).
 
 ```bash
 git add -A && git commit -m "docs: demo prep — real book data, README" && git push
+```
+
+---
+
+### Task 15: Wormy chat route `[ai]`
+
+Book-independent chat with Wormy: recommendations, "how's my reading going", general talk. Context = memory file + library overview (titles, authors, progress) — no book text.
+
+**Files:**
+- Create: `src/app/api/wormy/route.ts`
+- Modify: `src/app/api/memory/route.ts` (add GET so the UI can show the memory file)
+
+- [ ] **Step 1: Create `src/app/api/wormy/route.ts`**
+
+```ts
+import { streamText, convertToModelMessages, type UIMessage } from 'ai';
+import { model } from '@/lib/ai';
+import { readMemory } from '@/lib/memory';
+import { getBooks } from '@/lib/apple-books';
+
+export const maxDuration = 60;
+
+export async function POST(req: Request) {
+  const { messages }: { messages: UIMessage[] } = await req.json();
+
+  const library = getBooks()
+    .map((b) => `- "${b.title}" by ${b.author ?? 'Unknown'} — ${(b.progress * 100).toFixed(0)}% read`)
+    .join('\n');
+
+  const system = `You are Wormy, Johannes's reading buddy — a bookworm and a
+single continuous companion across all his books and sessions. This is your
+own tab: no specific book is open. Talk about reading in general — recommend
+what to read next (from his library or beyond, based on what you know about
+him), reflect on his reading habits, or just chat. Your personality and shared
+history live in your memory file.
+
+YOUR MEMORY:
+${readMemory()}
+
+HIS LIBRARY RIGHT NOW (live from Apple Books):
+${library}`;
+
+  const result = streamText({
+    model,
+    system,
+    messages: convertToModelMessages(messages),
+  });
+  return result.toUIMessageStreamResponse();
+}
+```
+
+- [ ] **Step 2: Add GET to `src/app/api/memory/route.ts`** (above the POST)
+
+```ts
+export async function GET() {
+  return Response.json({ memory: readMemory() });
+}
+```
+
+- [ ] **Step 3: Verify with curl**
+
+```bash
+curl -s -X POST localhost:3000/api/wormy -H 'content-type: application/json' \
+  -d '{"messages":[{"id":"1","role":"user","parts":[{"type":"text","text":"What should I read next?"}]}]}' | head -c 400
+curl -s localhost:3000/api/memory   # {"memory":"# Buddy Memory..."}
+```
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add src/app/api/wormy src/app/api/memory
+git commit -m "feat(ai): Wormy book-independent chat route and memory GET"
+```
+
+---
+
+### Task 16: Wormy tab `[ui]`
+
+Wormy's own page: book-independent chat, a peek into Wormy's memory, and settings. Future home of the animated Wormy mascot.
+
+**Files:**
+- Create: `src/app/wormy/page.tsx`
+
+- [ ] **Step 1: Create `src/app/wormy/page.tsx`**
+
+```tsx
+'use client';
+import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport } from 'ai';
+import { useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+
+export default function WormyPage() {
+  const { messages, sendMessage, status } = useChat({
+    transport: new DefaultChatTransport({ api: '/api/wormy' }),
+  });
+  const [input, setInput] = useState('');
+  const [memory, setMemory] = useState<string | null>(null);
+  const [showMemory, setShowMemory] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/memory')
+      .then((r) => r.json())
+      .then((d) => setMemory(d.memory))
+      .catch(() => {});
+  }, []);
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim()) return;
+    sendMessage({ text: input });
+    setInput('');
+  };
+
+  return (
+    <div className="flex h-[85vh] flex-col space-y-4">
+      <header className="flex items-center justify-between">
+        {/* future: animated Wormy mascot instead of the emoji */}
+        <h1 className="text-2xl">🪱 Wormy</h1>
+        <Button variant="outline" onClick={() => setShowMemory(!showMemory)}>
+          {showMemory ? 'Hide memory' : 'What Wormy remembers'}
+        </Button>
+      </header>
+
+      {showMemory && (
+        <pre className="max-h-48 overflow-y-auto rounded-lg border border-[#e5dac5] bg-white/70 p-3 text-xs whitespace-pre-wrap">
+          {memory ?? 'No memories yet.'}
+        </pre>
+      )}
+
+      <div className="flex-1 space-y-3 overflow-y-auto rounded-lg border border-[#e5dac5] bg-white/70 p-4">
+        {messages.length === 0 && (
+          <p className="text-sm italic text-[#8a7a64]">
+            No book open — this is just you and Wormy. Ask for a recommendation,
+            or how your reading is going.
+          </p>
+        )}
+        {messages.map((m) => (
+          <div
+            key={m.id}
+            className={`max-w-[85%] whitespace-pre-wrap rounded-lg px-3 py-2 text-sm ${
+              m.role === 'user'
+                ? 'ml-auto bg-[#2b2118] text-[#faf6ee]'
+                : 'bg-[#f0e8d8]'
+            }`}
+          >
+            {m.parts.map((p, i) => (p.type === 'text' ? <span key={i}>{p.text}</span> : null))}
+          </div>
+        ))}
+        {status === 'submitted' && <p className="text-sm italic text-[#8a7a64]">…</p>}
+      </div>
+
+      <form onSubmit={submit} className="flex gap-2">
+        <Input
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Hey Wormy…"
+        />
+        <Button type="submit" disabled={status !== 'ready'}>Send</Button>
+      </form>
+    </div>
+  );
+}
+```
+
+- [ ] **Step 2: Verify in browser** — Wormy tab opens from the bottom nav, "What Wormy remembers" shows the memory file, chat recommends books from the live library.
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add src/app/wormy
+git commit -m "feat(ui): Wormy tab with book-independent chat and memory peek"
 ```
 
 ---
