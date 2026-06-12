@@ -1,12 +1,60 @@
 'use client';
 import { useChat } from '@ai-sdk/react';
+import type { UIMessage } from 'ai';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
+// Demo: the chat opens mid-conversation. These ride along in the request,
+// so live replies stay consistent with them.
+const SEEDED_MESSAGES: UIMessage[] = [
+  {
+    id: 'seed-1',
+    role: 'user',
+    parts: [
+      {
+        type: 'text',
+        text: "Okay, the FAAFO chapter. Fast, fun — fine. But “optionality” sounds like consultant-speak. Is it a real benefit?",
+      },
+    ],
+  },
+  {
+    id: 'seed-2',
+    role: 'assistant',
+    parts: [
+      {
+        type: 'text',
+        text: "Fair challenge — but of the five it's the most economist-friendly one, so you of all people should like it. When attempts are nearly free, you can run three approaches in parallel and throw two away. That's option value, in exactly your textbook sense. Gene and Steve call it “turning one-way doors into reversible experiments.”",
+      },
+    ],
+  },
+  {
+    id: 'seed-3',
+    role: 'user',
+    parts: [
+      {
+        type: 'text',
+        text: 'Fine, that lands. Does the book ever admit when vibe coding goes wrong?',
+      },
+    ],
+  },
+  {
+    id: 'seed-4',
+    role: 'assistant',
+    parts: [
+      {
+        type: 'text',
+        text: "It does — there's a whole stretch ahead on failure modes and keeping your AI on a leash. No spoilers, but your skepticism is about to feel very validated. Keep reading. 🐛",
+      },
+    ],
+  },
+];
+
 export default function ChatPage() {
-  const { messages, sendMessage, status } = useChat();
+  const { messages, sendMessage, status } = useChat({
+    messages: SEEDED_MESSAGES,
+  });
   const [input, setInput] = useState('');
   const [memorySaved, setMemorySaved] = useState(false);
   const [mode, setMode] = useState<'strict' | 'guide'>('guide');
